@@ -1,0 +1,177 @@
+/* General Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  background: radial-gradient(circle, #1b1b1b 45%, #000000 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  height: 100vh;
+  color: white;
+}
+
+/* Container */
+.container {
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+}
+
+/* Title */
+.timer-title {
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+/* Task Selection */
+.task-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.task-container input {
+  padding: 12px;
+  font-size: 18px;
+  width: 100%;
+  max-width: 350px;
+  border-radius: 8px;
+  border: 2px solid #007bff;
+  background: #2e2e2e;
+  color: white;
+  text-align: center;
+}
+
+/* Timer Circle */
+.timer-circle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  position: relative;
+  background: radial-gradient(circle, #222 50%, #111 100%);
+  box-shadow: 0px 0px 15px rgba(0, 123, 255, 0.8);
+}
+
+/* Progress Effect */
+.progress-circle {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  border-radius: 50%;
+  position: relative;
+  background: conic-gradient(from 0deg, #007bff 0%, #8a2be2 100%);
+  transition: background 0.5s ease-in-out;
+}
+
+/* Inner Circle to Keep Progress Clean */
+.progress-circle::before {
+  content: "";
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: black; /* Keeps inner circle clean */
+}
+
+
+/* Session Counter */
+#sessionCounter {
+  text-align: center;
+  font-size: 18px;
+  margin-top: 10px;
+}
+
+/* Timer Controls */
+.timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+/* Buttons */
+button {
+  padding: 12px 20px;
+  background-color: #007bff;
+  border: none;
+  color: white;
+  font-size: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+/* Quote Container */
+.quote-container {
+  font-style: italic;
+  font-size: 16px;
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* Task List */
+.task-list {
+  position: fixed;
+  bottom: 15px;
+  right: 15px;
+  text-align: center;
+  background: #333;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+/* Settings Icon */
+.settings-icon {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.settings-panel {
+  position: fixed;
+  top: 50px;
+  right: 15px;
+  background: #333;
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  display: none;
+}
+
+/* Dark Mode */
+.dark-mode {
+  background: #121212;
+  color: white;
+}
+
+/* Music Icon */
+.music-icon {
+  position: fixed;
+  bottom: 15px;
+  left: 15px;
+}
+
+.music-icon img {
+  width: 50px;
+  cursor: pointer;
+}
