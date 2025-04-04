@@ -1,7 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTimer } from "@/app/hooks/useTimer";
 import { signOut } from "firebase/auth";
-import { auth } from "@/app/lib/firebaseConfig";
+import { auth, db } from "@/app/lib/firebaseConfig";
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  serverTimestamp
+} from "firebase/firestore";
+
+interface Task {
+  id: string;      // Firestore doc ID
+  text: string;    
+  done: boolean;
+}
+
 
 export default function Timer() {
   const {
@@ -15,6 +31,73 @@ export default function Timer() {
     timeLeft,
     initialTime,
   } = useTimer();
+
+  // -------------- CHECKLIST State --------------
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [newTaskText, setNewTaskText] = useState("");
+
+  // -------------- FIREBASE LOGIC --------------
+  // 1) Setup Firestore ref: users/{uid}/tasks
+  const user = auth.currentUser; // or pass user in from props/context
+  const tasksCollectionRef = user
+    ? collection(db, "users", user.uid, "tasks")
+    : null;
+
+  // 2) Listen for real-time task updates from Firestore
+  useEffect(() => {
+    if (!tasksCollectionRef) return;
+
+    const unsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => {
+      // Convert docs to the Task[] shape
+      const newTasks: Task[] = snapshot.docs.map((docSnap) => {
+        return {
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Task;
+      });
+      setTasks(newTasks);
+    });
+
+    return () => unsubscribe();
+  }, [tasksCollectionRef]);
+
+  // 3) Add a new task to Firestore
+  const handleAddTask = async () => {
+    if (!newTaskText.trim() || !tasksCollectionRef) return;
+    try {
+      await addDoc(tasksCollectionRef, {
+        text: newTaskText.trim(),
+        done: false,
+        createdAt: serverTimestamp(),
+      });
+      setNewTaskText("");
+    } catch (error) {
+      console.error("Error adding task:", error);
+    }
+  };
+
+  // 4) Toggle Task (done/undone)
+  const handleToggleTask = async (task: Task) => {
+    if (!tasksCollectionRef) return;
+    try {
+      const docRef = doc(tasksCollectionRef, task.id);
+      await updateDoc(docRef, { done: !task.done });
+    } catch (error) {
+      console.error("Error toggling task:", error);
+    }
+  };
+
+  // 5) Remove a task
+  const handleRemoveTask = async (task: Task) => {
+    if (!tasksCollectionRef) return;
+    try {
+      const docRef = doc(tasksCollectionRef, task.id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Error removing task:", error);
+    }
+  };
+
 
   // handle user logout
   const handleLogout = async () => {
@@ -85,7 +168,7 @@ export default function Timer() {
             cy="50"
             r="45"
             fill="none"
-            stroke="#2563EB"
+            stroke="oklch(55.3% 0.013 58.071)"
             strokeWidth="8"
             strokeDasharray="282.6"
             strokeDashoffset={282.6 * (1 - progress)}
@@ -93,7 +176,7 @@ export default function Timer() {
             transform="rotate(-90 50 50)"
           />
           {/* You can remove the knob if you'd like */}
-          <circle cx="50" cy="5" r="4" fill="#fff" stroke="#2563EB" strokeWidth="2" />
+          <circle cx="50" cy="5" r="4" fill="#fff" stroke="oklch(55.3% 0.013 58.071)" strokeWidth="2" />
         </svg>
         <div className="absolute text-3xl font-medium">{timeString}</div>
       </div>
@@ -137,6 +220,59 @@ export default function Timer() {
             <rect x="14" y="4" width="4" height="16" />
           </svg>
         </button>
+      </div>
+
+      {/* Checklist Section */}
+      <div className="absolute top-30 left-5 m-auto w-80">
+        <h2 className="text-lg font-bold mb-2">Task Checklist</h2>
+
+        {/* New Task Input */}
+        <div className="flex items-center mb-4 space-x-2">
+          <input
+            className="flex-1 p-2 text-white rounded"
+            type="text"
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            placeholder="New task..."
+          />
+          <button
+            onClick={handleAddTask}
+            className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500"
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Task List */}
+        <ul className="space-y-2">
+          {tasks.map((task) => (
+            <li
+              key={task.id}
+              className="flex items-center justify-between bg-gray-700 p-2 rounded"
+            >
+              {/* Checkbox + Task Text */}
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={task.done}
+                  onChange={() => handleToggleTask(task)}
+                  className="mr-2"
+                />
+                <span className={task.done ? "line-through" : ""}>
+                  {task.text}
+                </span>
+              </label>
+
+              {/* Remove Button */}
+              <button
+                onClick={() => handleRemoveTask(task)}
+                className="bg-red-600 px-2 py-1 rounded hover:bg-red-500 text-sm"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
