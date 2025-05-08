@@ -32,7 +32,6 @@ export default function Timer() {
     pauseTimer,
     resumeTimer,
     timeLeft,
-    initialTime,
   } = useTimer();
 
 
