@@ -2,6 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useTimer } from "@/app/hooks/useTimer";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/app/lib/firebaseConfig";
+
+// spotify
+import { useSpotifyPlayer } from "@/app/hooks/useSpotifyPlayer";
+import { useSpotifyAuth } from "@/app/hooks/useSpotifyAuth";
+import { useSpotifyData } from "@/app/hooks/useSpotifyData"; 
+
 import {
   collection,
   doc,
@@ -19,6 +25,7 @@ interface Task {
 }
 
 
+
 export default function Timer() {
   const {
     progress,
@@ -32,15 +39,34 @@ export default function Timer() {
     initialTime,
   } = useTimer();
 
+  // spotify 
+  const { spotifyToken, connectSpotify, refreshSpotifyToken } = useSpotifyAuth();
+  const { isPaused: isSpotifyPaused, togglePlay } = useSpotifyPlayer(spotifyToken);
+  const { currentTrack, playlists } = useSpotifyData(spotifyToken);
+
+
+  // Example: refresh token every 50 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshSpotifyToken();
+    }, 50 * 60 * 1000); // 50 minutes
+
+    return () => clearInterval(interval);
+  }, [refreshSpotifyToken]);
+
+  
+
+
+
   // -------------- CHECKLIST State --------------
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTaskText, setNewTaskText] = useState("");
 
   // -------------- FIREBASE LOGIC --------------
-  // 1) Setup Firestore ref: users/{uid}/tasks
-  const user = auth.currentUser; // or pass user in from props/context
+  // 1) Setup Firestore ref
+  const user = auth.currentUser;
   const tasksCollectionRef = user
-    ? collection(db, "users", user.uid, "tasks")
+    ? collection(db, "users", user.uid, "todos")
     : null;
 
   // 2) Listen for real-time task updates from Firestore
@@ -113,12 +139,9 @@ export default function Timer() {
   // Track if the user is in a paused state
   const [isPaused, setIsPaused] = useState(false);
 
-  // Debug logs (optional, can remove later)
-  console.log("isRunning:", isRunning, "isPaused:", isPaused, "timeLeft:", timeLeft);
 
   // Start/Resume button:
   const handleStartResume = () => {
-    // If we are running, do nothing (or do your own logic).
     if (isRunning) return;
 
     // If currently paused, resume leftover time:
@@ -128,7 +151,7 @@ export default function Timer() {
     }
     // Otherwise, start fresh:
     else {
-      // Let's do 1 minute by default so you can see the pause effect
+      // 1 minute by default
       startTimer(1, 0);
       setIsPaused(false);
     }
@@ -222,6 +245,8 @@ export default function Timer() {
         </button>
       </div>
 
+      
+
       {/* Checklist Section */}
       <div className="absolute top-30 left-5 m-auto w-80">
         <h2 className="text-lg font-bold mb-2">Task Checklist</h2>
@@ -274,6 +299,56 @@ export default function Timer() {
           ))}
         </ul>
       </div>
+
+
+      {/* Currently Playing Song */}
+      {currentTrack && (
+        <div className="mt-6 text-center">
+          <img
+            src={currentTrack.album.images[0]?.url}
+            alt="Album Cover"
+            className="w-24 h-24 mx-auto rounded-md mb-2"
+          />
+          <div className="text-lg font-bold">{currentTrack.name}</div>
+          <div className="text-sm text-gray-400">{currentTrack.artists.map((artist: any) => artist.name).join(", ")}</div>
+        </div>
+      )}
+
+      {/* User's Playlists */}
+      <div className="mt-10 w-full px-6">
+        <h2 className="text-xl font-bold mb-4">Your Playlists</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {playlists.map((playlist) => (
+            <div
+              key={playlist.id}
+              className="bg-stone-800 hover:bg-stone-700 p-3 rounded-md text-sm text-center p-2 rounded"
+            >
+              {playlist.name}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center justify-center">
+      {!spotifyToken ? (
+        <button
+          onClick={connectSpotify}
+          className="p-4 bg-green-600 text-white rounded hover:bg-green-500"
+        >
+        </button>
+      ) : (
+        <>
+          {/* Timer and player controls here */}
+          <button
+            onClick={togglePlay}
+            className="p-4 bg-blue-600 text-white rounded hover:bg-blue-500"
+          >
+            {isSpotifyPaused ? "Play" : "Pause"}
+          </button>
+        </>
+      )}
+    </div>
+
     </div>
   );
 }
