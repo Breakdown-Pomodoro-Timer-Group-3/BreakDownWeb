@@ -60,7 +60,7 @@ export function useSpotifyAuth() {
       const { refresh_token } = spotifyDoc.data();
       if (!refresh_token) return;
 
-      const response = await axios.post("http://127.0.0.1:4000/refresh", {
+      const response = await axios.post("https://authserver-rv94.onrender.com/refresh", {
         refresh_token,
       });
 
