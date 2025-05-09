@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTimer } from "@/app/hooks/useTimer";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/app/lib/firebaseConfig";
-
-
+import Image from "next/image";
 import {
   collection,
   doc,
@@ -11,16 +10,14 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
 } from "firebase/firestore";
 
 interface Task {
-  id: string;      // Firestore doc ID
-  text: string;    
+  id: string;
+  text: string;
   done: boolean;
 }
-
-
 
 export default function Timer() {
   const {
@@ -34,24 +31,26 @@ export default function Timer() {
     timeLeft,
   } = useTimer();
 
+  const [workMinutes, setWorkMinutes] = useState(25);
+  const [customWork, setCustomWork] = useState<number | null>(null);
+  const [breakMinutes, setBreakMinutes] = useState(5);
+  const [longBreakMinutes, setLongBreakMinutes] = useState(15);
+  const [sessionCount, setSessionCount] = useState(0);
+  const [isWorkSession, setIsWorkSession] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [sessionType, setSessionType] = useState<"work" | "break" | "longBreak">("work");
 
-  // -------------- CHECKLIST State --------------
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTaskText, setNewTaskText] = useState("");
-
-  // -------------- FIREBASE LOGIC --------------
-  // 1) Setup Firestore ref
   const user = auth.currentUser;
   const tasksCollectionRef = user
     ? collection(db, "users", user.uid, "todos")
     : null;
 
-  // 2) Listen for real-time task updates from Firestore
   useEffect(() => {
     if (!tasksCollectionRef) return;
 
     const unsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => {
-      // Convert docs to the Task[] shape
       const newTasks: Task[] = snapshot.docs.map((docSnap) => {
         return {
           id: docSnap.id,
@@ -64,7 +63,6 @@ export default function Timer() {
     return () => unsubscribe();
   }, [tasksCollectionRef]);
 
-  // 3) Add a new task to Firestore
   const handleAddTask = async () => {
     if (!newTaskText.trim() || !tasksCollectionRef) return;
     try {
@@ -79,7 +77,6 @@ export default function Timer() {
     }
   };
 
-  // 4) Toggle Task (done/undone)
   const handleToggleTask = async (task: Task) => {
     if (!tasksCollectionRef) return;
     try {
@@ -90,7 +87,6 @@ export default function Timer() {
     }
   };
 
-  // 5) Remove a task
   const handleRemoveTask = async (task: Task) => {
     if (!tasksCollectionRef) return;
     try {
@@ -101,58 +97,73 @@ export default function Timer() {
     }
   };
 
-
-  // handle user logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Optionally redirect or show a message
       console.log("User logged out successfully");
     } catch (error) {
       console.error("Logout error:", error);
     }
   };
 
-  // Track if the user is in a paused state
-  const [isPaused, setIsPaused] = useState(false);
-
-
-  // Start/Resume button:
   const handleStartResume = () => {
     if (isRunning) return;
 
-    // If currently paused, resume leftover time:
     if (isPaused && timeLeft > 0) {
       resumeTimer();
       setIsPaused(false);
-    }
-    // Otherwise, start fresh:
-    else {
-      // 1 minute by default
-      startTimer(1, 0);
+    } else {
+      const duration = customWork !== null ? customWork : workMinutes;
+      startTimer(duration, 0);
+      setIsWorkSession(true);
+      setSessionType("work");
       setIsPaused(false);
     }
   };
 
-  // Pause/Stop button:
   const handlePauseStop = () => {
-    // If the timer is running and not paused => first click: pause
     if (isRunning && !isPaused) {
       pauseTimer();
       setIsPaused(true);
-    }
-    // If we are already paused => second click: stop
-    else if (isPaused) {
+    } else if (isPaused) {
       stopTimer();
       setIsPaused(false);
     }
   };
 
+  // Refs to handle session switch reliably
+  const prevIsRunningRef = React.useRef(false);
+  const prevTimeLeftRef = React.useRef(timeLeft);
+
+  useEffect(() => {
+    // When timer stops and timeLeft hits 0
+    if (prevIsRunningRef.current && prevTimeLeftRef.current > 0 && timeLeft === 0 && !isRunning) {
+      if (sessionType === "work") {
+        const nextCount = sessionCount + 1;
+        setSessionCount(nextCount);
+        setIsWorkSession(false);
+        if (nextCount % 4 === 0) {
+          setSessionType("longBreak");
+          startTimer(longBreakMinutes, 0);
+        } else {
+          setSessionType("break");
+          startTimer(breakMinutes, 0);
+        }
+      } else {
+        const duration = customWork !== null ? customWork : workMinutes;
+        setIsWorkSession(true);
+        setSessionType("work");
+        startTimer(duration, 0);
+      }
+    }
+    prevIsRunningRef.current = isRunning;
+    prevTimeLeftRef.current = timeLeft;
+  }, [timeLeft, isRunning]);
+
   return (
     <div className="flex flex-col items-center justify-center h-screen text-white">
       <h1 className="absolute top-10 left-5 text-2xl font-bold">BreakDown</h1>
 
-      {/* Logout Button */}
       <button
         onClick={handleLogout}
         className="absolute top-10 right-5 bg-gray-700 px-4 py-2 rounded hover:bg-gray-600"
@@ -160,6 +171,57 @@ export default function Timer() {
         Logout
       </button>
 
+      <div className="mb-6 space-y-2">
+        <div>
+          <label>Work Duration: </label>
+          <select
+            value={customWork !== null ? 0 : workMinutes}
+            onChange={(e) => {
+              const val = parseInt(e.target.value);
+              if (val === 0) {
+                setCustomWork(15);
+              } else {
+                setCustomWork(null);
+                setWorkMinutes(val);
+              }
+            }}
+          >
+            {[15, 25, 60].map((min) => (
+              <option key={min} value={min}>{min} min</option>
+            ))}
+            <option value={0}>Custom</option>
+          </select>
+          {customWork !== null && (
+            <input
+              type="number"
+              value={customWork}
+              min={1}
+              onChange={(e) => setCustomWork(parseInt(e.target.value))}
+              className="ml-2 p-1 text-white rounded w-20"
+            />
+          )}
+        </div>
+        <div>
+          <label>Short Break: </label>
+          <input
+            type="number"
+            value={breakMinutes}
+            onChange={(e) => setBreakMinutes(parseInt(e.target.value))}
+            className="ml-2 p-1 text-white rounded w-20"
+          />
+        </div>
+        <div>
+          <label>Long Break: </label>
+          <input
+            type="number"
+            value={longBreakMinutes}
+            onChange={(e) => setLongBreakMinutes(parseInt(e.target.value))}
+            className="ml-2 p-1 text-white rounded w-20"
+          />
+        </div>
+      </div>
+      
+       
       <div className="relative w-60 h-60 flex items-center justify-center">
         <svg className="w-full h-full" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="45" fill="none" stroke="#222" strokeWidth="8" />
@@ -168,67 +230,46 @@ export default function Timer() {
             cy="50"
             r="45"
             fill="none"
-            stroke="oklch(55.3% 0.013 58.071)"
+            stroke="oklch(0.64 0.1801 240.35)"
             strokeWidth="8"
             strokeDasharray="282.6"
             strokeDashoffset={282.6 * (1 - progress)}
             strokeLinecap="round"
             transform="rotate(-90 50 50)"
           />
-          {/* You can remove the knob if you'd like */}
-          <circle cx="50" cy="5" r="4" fill="#fff" stroke="oklch(55.3% 0.013 58.071)" strokeWidth="2" />
+          <circle cx="50" cy="5" r="4" fill="#fff" stroke="oklch(0.64 0.1801 240.35)" strokeWidth="2" />
         </svg>
         <div className="absolute text-3xl font-medium">{timeString}</div>
       </div>
 
       <div className="mt-10 flex space-x-4">
-        {/* Start/Resume Button */}
         <button
           className="p-5 bg-stone-700 rounded-full shadow-lg hover:bg-stone-600 transition-transform active:scale-90"
           onClick={handleStartResume}
         >
-          {/* Play icon */}
-          <svg
-            className="w-10 h-10 text-white"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="6 4 20 12 6 20 6 4" />
           </svg>
         </button>
-
-        {/* Pause/Stop Button */}
         <button
           className="p-5 bg-neutral-700 rounded-full shadow-lg hover:bg-neutral-600 transition-transform active:scale-90"
           onClick={handlePauseStop}
         >
-          {/* Pause icon */}
-          <svg
-            className="w-10 h-10 text-white"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="6" y="4" width="4" height="16" />
             <rect x="14" y="4" width="4" height="16" />
           </svg>
         </button>
       </div>
 
-      
+      {/* session counter */}
+      <div className="absolute top-30 absolute right-5 m-auto text-sm text-center">
+        Sessions: {sessionCount}
+      </div>
 
-      {/* Checklist Section */}
+
       <div className="absolute top-30 left-5 m-auto w-80">
         <h2 className="text-lg font-bold mb-2">Task Checklist</h2>
-
-        {/* New Task Input */}
         <div className="flex items-center mb-4 space-x-2">
           <input
             className="flex-1 p-2 text-white rounded"
@@ -239,20 +280,21 @@ export default function Timer() {
           />
           <button
             onClick={handleAddTask}
-            className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500"
+            className="px-4 py-2 rounded"
+            style={{
+              backgroundColor: "oklch(0.64 0.1801 240.35)",
+              transition: "filter 0.2s ease-in-out",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
           >
             Add
           </button>
-        </div>
 
-        {/* Task List */}
+        </div>
         <ul className="space-y-2">
           {tasks.map((task) => (
-            <li
-              key={task.id}
-              className="flex items-center justify-between bg-gray-700 p-2 rounded"
-            >
-              {/* Checkbox + Task Text */}
+            <li key={task.id} className="flex items-center justify-between bg-gray-700 p-2 rounded">
               <label className="flex items-center">
                 <input
                   type="checkbox"
@@ -260,12 +302,8 @@ export default function Timer() {
                   onChange={() => handleToggleTask(task)}
                   className="mr-2"
                 />
-                <span className={task.done ? "line-through" : ""}>
-                  {task.text}
-                </span>
+                <span className={task.done ? "line-through" : ""}>{task.text}</span>
               </label>
-
-              {/* Remove Button */}
               <button
                 onClick={() => handleRemoveTask(task)}
                 className="bg-red-600 px-2 py-1 rounded hover:bg-red-500 text-sm"
